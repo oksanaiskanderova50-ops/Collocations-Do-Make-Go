@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>Grandma's Attic Quest</title>
+<style>
+  :root{
+    --stage-w: 1600;
+    --stage-h: 900;
+    --glow: 0 0 18px rgba(255,255,255,.75), 0 0 42px rgba(255,255,255,.35);
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{
+    margin:0;
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    background:#111;
+    font-family:"Comic Sans MS","Comic Sans",cursive;
+    touch-action:none;
+    user-select:none;
+    -webkit-user-select:none;
+  }
+
+  button{ font:inherit; }
+
+  #app{
+    position:fixed;
+    inset:0;
+    display:grid;
+    place-items:center;
+    background:#111;
+  }
+
+  .screen{
+    position:absolute;
+    inset:0;
+    display:none;
+    align-items:center;
+    justify-content:center;
+  }
+
+  .screen.active{ display:flex; }
+
+  .media-fill{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    object-fit:contain;
+    background:#111;
+  }
+
+  /* INTRO */
+  #introScreen{
+    background:#000;
+  }
+
+  #introVideo{
+    width:100%;
+    height:100%;
+    object-fit:contain;
+    background:#000;
+  }
+
+  #skipBtn{
+    position:absolute;
+    top:max(18px, env(safe-area-inset-top));
+    right:max(18px, env(safe-area-inset-right));
+    z-index:5;
+    border:none;
+    border-radius:999px;
+    padding:12px 20px;
+    background:rgba(20,20,20,.72);
+    color:#fff;
+    font-weight:800;
+    font-size:clamp(16px,2vw,26px);
+    cursor:pointer;
+    backdrop-filter:blur(8px);
+    box-shadow:0 8px 25px rgba(0,0,0,.35);
+  }
+
+  #introHint{
+    position:absolute;
+    left:50%;
+    bottom:max(20px, env(safe-area-inset-bottom));
+    transform:translateX(-50%);
+    z-index:4;
+    padding:10px 18px;
+    border-radius:999px;
+    color:white;
+    background:rgba(0,0,0,.48);
+    font-size:clamp(14px,1.5vw,20px);
+    pointer-events:none;
+    opacity:.92;
+  }
+
+  /* START */
+  #startScreen{
+    background:#111;
+  }
+
+  #startBg{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    object-fit:contain;
+  }
+
+  #startButton{
+    position:absolute;
+    left:50%;
+    top:50%;
+    transform:translate(-50%,-50%);
+    width:clamp(150px,22vw,380px);
+    max-height:30vh;
+    object-fit:contain;
+    cursor:pointer;
+    filter:drop-shadow(0 0 16px rgba(255,255,255,.8))
+           drop-shadow(0 0 32px rgba(255,242,120,.65));
+    animation:startFloat 2.3s ease-in-out infinite;
+    z-index:2;
+  }
+
+  @keyframes startFloat{
+    0%,100%{ transform:translate(-50%,-50%) rotate(-1.6deg) scale(1); }
+    50%{ transform:translate(-50%,-54%) rotate(1.6deg) scale(1.04); }
+  }
+
+  /* GAME STAGE */
+  #gameScreen{
+    background:#111;
+  }
+
+  #stageWrap{
+    position:relative;
+    width:min(100vw, calc(100vh * 16 / 9));
+    height:min(100vh, calc(100vw * 9 / 16));
+    overflow:hidden;
+    background:#111;
+  }
+
+  #background{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    object-fit:contain;
+    pointer-events:none;
+  }
+
+  #roundBadge{
+    position:absolute;
+    left:2.2%;
+    top:2.8%;
+    z-index:6;
+    padding:.45em .8em;
+    border-radius:999px;
+    color:white;
+    background:rgba(0,0,0,.38);
+    backdrop-filter:blur(6px);
+    font:bold clamp(14px,1.5vw,24px)/1 "Comic Sans MS","Comic Sans",cursive;
+    box-shadow:0 4px 16px rgba(0,0,0,.2);
+  }
+
+  #flowersLayer, #wordsLayer, #dropsLayer{
+    position:absolute;
+    inset:0;
+  }
+
+  .flowerSlot{
+    position:absolute;
+    top:calc(58% + 1.5cm);
+    width:18%;
+    transform:translate(-50%,-50%);
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    z-index:2;
+  }
+
+  .flowerSlot.left{ left:25%; }
+  .flowerSlot.center{ left:50%; }
+  .flowerSlot.right{ left:75%; }
+
+  .flower{
+    width:100%;
+    height:auto;
+    object-fit:contain;
+    filter:drop-shadow(var(--glow));
+    transform-origin:center;
+    pointer-events:none;
+  }
+
+  .flower.angry{
+    width:111.11%; /* 18% -> approx 20% of stage */
+    animation:angryShake .18s ease-in-out infinite alternate;
+  }
+
+  @keyframes angryShake{
+    from{ transform:rotate(-4deg) scale(1.02); }
+    to{ transform:rotate(4deg) scale(1.06); }
+  }
+
+  .wordBox{
+    position:absolute;
+    top:calc(73% + 1.5cm);
+    width:19%;
+    min-height:8.55%;
+    transform:translate(-50%,-50%);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    padding:.6em .75em;
+    border-radius:20px;
+    background:rgba(255,255,255,.94);
+    border:3px solid rgba(255,255,255,.96);
+    box-shadow:0 0 18px rgba(255,255,255,.48), 0 8px 24px rgba(0,0,0,.18);
+    color:#31251f;
+    font-weight:900;
+    font-size:clamp(16px,2vw,34px);
+    line-height:1.06;
+    z-index:3;
+  }
+
+  .wordBox.left{ left:25%; }
+  .wordBox.center{ left:50%; }
+  .wordBox.right{ left:75%; }
+
+  .wordBox.correct{
+    box-shadow:0 0 0 4px rgba(255,255,255,.95), 0 0 30px rgba(255,255,255,.8);
+  }
+
+  .drop{
+    position:absolute;
+    top:calc(16% + 1.5cm);
+    width:15%;
+    height:auto;
+    object-fit:contain;
+    transform:translate(-50%,-50%);
+    z-index:7;
+    cursor:grab;
+    touch-action:none;
+    filter:drop-shadow(0 0 14px rgba(255,255,255,.82))
+           drop-shadow(0 0 30px rgba(255,255,255,.35));
+    animation:dropFloat 2.25s ease-in-out infinite;
+    will-change:left,top,transform,opacity;
+  }
+
+  .drop.make{ left:25%; }
+  .drop.go{ left:50%; }
+  .drop.do{ left:75%; }
+
+  .drop.dragging{
+    cursor:grabbing;
+    animation:none;
+    transform:translate(-50%,-50%) scale(1.08);
+    z-index:20;
+  }
+
+  .drop.disappear{
+    animation:none;
+    transition:opacity .32s ease, transform .32s ease;
+    opacity:0;
+    transform:translate(-50%,-50%) scale(.2);
+    filter:none;
+    pointer-events:none;
+  }
+
+  @keyframes dropFloat{
+    0%,100%{ transform:translate(-50%,-50%) translateY(0) rotate(-1.5deg); }
+    50%{ transform:translate(-50%,-50%) translateY(-8px) rotate(1.5deg); }
+  }
+
+  .spawn{
+    animation:spawn .55s cubic-bezier(.2,.9,.2,1.2) both, dropFloat 2.25s .55s ease-in-out infinite;
+  }
+
+  @keyframes spawn{
+    from{ opacity:0; transform:translate(-50%,-50%) scale(.45); }
+    to{ opacity:1; transform:translate(-50%,-50%) scale(1); }
+  }
+
+  #interactionShield{
+    position:absolute;
+    inset:0;
+    z-index:30;
+    display:none;
+  }
+
+  /* NEXT OVERLAY */
+  #nextOverlay{
+    position:absolute;
+    inset:0;
+    z-index:40;
+    display:none;
+    background:#111;
+    cursor:pointer;
+  }
+
+  #nextOverlay.show{ display:block; }
+
+  #nextOverlay img{
+    width:100%;
+    height:100%;
+    object-fit:contain;
+  }
+
+  #nextOverlay .continueHint{
+    position:absolute;
+    left:50%;
+    bottom:3.5%;
+    transform:translateX(-50%);
+    padding:.55em 1em;
+    border-radius:999px;
+    background:rgba(0,0,0,.42);
+    color:white;
+    font-weight:800;
+    font-size:clamp(14px,1.3vw,22px);
+    animation:pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse{
+    0%,100%{ opacity:.72; transform:translateX(-50%) scale(1); }
+    50%{ opacity:1; transform:translateX(-50%) scale(1.04); }
+  }
+
+  /* FINAL */
+  #finalScreen{
+    background:#000;
+  }
+
+  #finalVideo{
+    width:100%;
+    height:100%;
+    object-fit:contain;
+    background:#000;
+  }
+
+  #endLabel{
+    position:absolute;
+    left:50%;
+    bottom:max(18px,env(safe-area-inset-bottom));
+    transform:translateX(-50%);
+    color:#fff;
+    background:rgba(0,0,0,.42);
+    border-radius:999px;
+    padding:10px 18px;
+    font-size:clamp(14px,1.4vw,20px);
+    opacity:0;
+    transition:opacity .35s ease;
+  }
+
+  #endLabel.show{ opacity:1; }
+
+  /* SMALL MOBILE */
+  @media (max-width:700px), (max-height:500px){
+    .drop{ width:18%; top:calc(16% + 1.5cm); }
+    .flowerSlot{ width:20%; top:calc(58% + 1.5cm); }
+    .wordBox{ width:20.9%; top:calc(73% + 1.5cm); font-size:clamp(12px,3vw,23px); border-width:2px; border-radius:14px; }
+    #skipBtn{ padding:9px 15px; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{
+      animation-duration:.001ms !important;
+      animation-iteration-count:1 !important;
+      transition-duration:.001ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <section id="introScreen" class="screen active" aria-label="Intro video">
+    <video id="introVideo" playsinline preload="auto">
+      <source src="intro_game.mp4" type="video/mp4">
+    </video>
+    <button id="skipBtn" type="button">Skip</button>
+    <div id="introHint">Tap the video if your browser blocks autoplay</div>
+  </section>
+
+  <section id="startScreen" class="screen" aria-label="Start screen">
+    <img id="startBg" src="Start pic.png" alt="">
+    <img id="startButton" src="Start_button.png" alt="Start" role="button" tabindex="0">
+  </section>
+
+  <section id="gameScreen" class="screen" aria-label="Quest">
+    <div id="stageWrap">
+      <img id="background" src="background.png" alt="">
+
+      <div id="roundBadge">1 / 10</div>
+
+      <div id="flowersLayer">
+        <div class="flowerSlot left"><img class="flower" data-slot="left" src="wilted.png" alt=""></div>
+        <div class="flowerSlot center"><img class="flower" data-slot="center" src="wilted.png" alt=""></div>
+        <div class="flowerSlot right"><img class="flower" data-slot="right" src="wilted.png" alt=""></div>
+      </div>
+
+      <div id="wordsLayer">
+        <div class="wordBox left" data-slot="left"></div>
+        <div class="wordBox center" data-slot="center"></div>
+        <div class="wordBox right" data-slot="right"></div>
+      </div>
+
+      <div id="dropsLayer">
+        <img class="drop make" data-verb="make" src="Make_drop.png" alt="Make">
+        <img class="drop go" data-verb="go" src="Go_drop.png" alt="Go">
+        <img class="drop do" data-verb="do" src="Do_drop.png" alt="Do">
+      </div>
+
+      <div id="interactionShield"></div>
+
+      <div id="nextOverlay" aria-label="Next">
+        <img src="next.png" alt="Next">
+        <div class="continueHint">Tap to continue</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="finalScreen" class="screen" aria-label="Final video">
+    <video id="finalVideo" playsinline preload="auto">
+      <source src="you_did_it.mp4" type="video/mp4">
+    </video>
+    <div id="endLabel">Quest complete!</div>
+  </section>
+
+</div>
+
+<audio id="instructionAudio" preload="auto" src="connect.m4a"></audio>
+<audio id="correctAudio" preload="auto" src="Yum.m4a"></audio>
+<audio id="wrongAudio" preload="auto" src="Oh no.m4a"></audio>
+
+<script>
+(() => {
+  "use strict";
+
+  const ASSETS = {
+    wilted: "wilted.png",
+    angry: "angry.png",
+    flowersBySlot: {
+      left: "blue.png",
+      center: "pink.png",
+      right: "purple.png"
+    }
+  };
+
+  // Each displayed fragment has exactly one matching verb.
+  // This follows the fragments listed in the brief.
+  const ROUNDS = [
+    [
+      { text:"homework", verb:"do" },
+      { text:"dinner", verb:"make" },
+      { text:"swimming", verb:"go" }
+    ],
+    [
+      { text:"to bed", verb:"go" },
+      { text:"sport", verb:"do" },
+      { text:"salad", verb:"make" }
+    ],
+    [
+      { text:"friends", verb:"make" },
+      { text:"for a walk", verb:"go" },
+      { text:"the washing up", verb:"do" }
+    ],
+    [
+      { text:"my bed", verb:"make" },
+      { text:"to a park", verb:"go" },
+      { text:"exercises", verb:"do" }
+    ],
+    [
+      { text:"a choice", verb:"make" },
+      { text:"home", verb:"go" },
+      { text:"my best", verb:"do" }
+    ],
+    [
+      { text:"housework", verb:"do" },
+      { text:"a sandwich", verb:"make" },
+      { text:"for a pizza", verb:"go" }
+    ],
+    [
+      { text:"gymnastics", verb:"do" },
+      { text:"breakfast", verb:"make" },
+      { text:"camping", verb:"go" }
+    ],
+    [
+      { text:"yoga", verb:"do" },
+      { text:"lunch", verb:"make" },
+      { text:"sightseeing", verb:"go" }
+    ],
+    [
+      { text:"the laundry", verb:"do" },
+      { text:"a mistake", verb:"make" },
+      { text:"sleeping", verb:"go" }
+    ],
+    [
+      { text:"the test", verb:"do" },
+      { text:"a plan", verb:"make" },
+      { text:"for a drink", verb:"go" }
+    ]
+  ];
+
+  const introScreen = document.getElementById("introScreen");
+  const startScreen = document.getElementById("startScreen");
+  const gameScreen = document.getElementById("gameScreen");
+  const finalScreen = document.getElementById("finalScreen");
+
+  const introVideo = document.getElementById("introVideo");
+  const finalVideo = document.getElementById("finalVideo");
+  const skipBtn = document.getElementById("skipBtn");
+  const introHint = document.getElementById("introHint");
+  const startButton = document.getElementById("startButton");
+
+  const instructionAudio = document.getElementById("instructionAudio");
+  const correctAudio = document.getElementById("correctAudio");
+  const wrongAudio = document.getElementById("wrongAudio");
+
+  const stage = document.getElementById("stageWrap");
+  const roundBadge = document.getElementById("roundBadge");
+  const nextOverlay = document.getElementById("nextOverlay");
+  const shield = document.getElementById("interactionShield");
+
+  const drops = [...document.querySelectorAll(".drop")];
+  const wordBoxes = [...document.querySelectorAll(".wordBox")];
+  const flowers = [...document.querySelectorAll(".flower")];
+
+  const slotNames = ["left","center","right"];
+  const dropHomes = {
+    make: { left:"25%", top:"calc(16% + 1.5cm)" },
+    go:   { left:"50%", top:"calc(16% + 1.5cm)" },
+    do:   { left:"75%", top:"calc(16% + 1.5cm)" }
+  };
+
+  let currentRound = 0;
+  let currentSlotData = {};
+  let solvedVerbs = new Set();
+  let busyWrong = false;
+  let nextAdvanceTimer = null;
+  let audioCtx = null;
+
+  function showScreen(el){
+    [introScreen,startScreen,gameScreen,finalScreen].forEach(s => s.classList.remove("active"));
+    el.classList.add("active");
+  }
+
+  function shuffle(arr){
+    const a = [...arr];
+    for(let i=a.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [a[i],a[j]] = [a[j],a[i]];
+    }
+    return a;
+  }
+
+  function safePlay(media){
+    if(!media) return Promise.resolve();
+    try{
+      const p = media.play();
+      if(p && typeof p.catch === "function") return p.catch(()=>{});
+    }catch(e){}
+    return Promise.resolve();
+  }
+
+  function stopAndReset(media){
+    if(!media) return;
+    try{
+      media.pause();
+      media.currentTime = 0;
+    }catch(e){}
+  }
+
+  function ensureAudioContext(){
+    if(!audioCtx){
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if(Ctx) audioCtx = new Ctx();
+    }
+    if(audioCtx && audioCtx.state === "suspended") audioCtx.resume().catch(()=>{});
+  }
+
+  function playTone(kind){
+    ensureAudioContext();
+    if(!audioCtx) return;
+
+    const now = audioCtx.currentTime;
+    const gain = audioCtx.createGain();
+    gain.connect(audioCtx.destination);
+
+    if(kind === "start"){
+      const osc = audioCtx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(680, now);
+      osc.frequency.exponentialRampToValueAtTime(900, now + .07);
+      gain.gain.setValueAtTime(.0001, now);
+      gain.gain.exponentialRampToValueAtTime(.22, now + .008);
+      gain.gain.exponentialRampToValueAtTime(.0001, now + .13);
+      osc.connect(gain);
+      osc.start(now);
+      osc.stop(now + .14);
+    } else if(kind === "ding"){
+      const osc1 = audioCtx.createOscillator();
+      const osc2 = audioCtx.createOscillator();
+      const g2 = audioCtx.createGain();
+      osc1.type = "sine";
+      osc2.type = "sine";
+      osc1.frequency.value = 880;
+      osc2.frequency.value = 1320;
+      gain.gain.setValueAtTime(.0001, now);
+      gain.gain.exponentialRampToValueAtTime(.20, now + .01);
+      gain.gain.exponentialRampToValueAtTime(.0001, now + .8);
+      g2.gain.setValueAtTime(.0001, now);
+      g2.gain.exponentialRampToValueAtTime(.08, now + .02);
+      g2.gain.exponentialRampToValueAtTime(.0001, now + .65);
+      osc1.connect(gain);
+      osc2.connect(g2);
+      g2.connect(audioCtx.destination);
+      osc1.start(now); osc2.start(now + .04);
+      osc1.stop(now + .82); osc2.stop(now + .72);
+    }
+  }
+
+  function goToStart(){
+    stopAndReset(introVideo);
+    showScreen(startScreen);
+  }
+
+  skipBtn.addEventListener("click", goToStart);
+  introVideo.addEventListener("ended", goToStart);
+
+  // Try autoplay. If blocked, user can tap the video.
+  window.addEventListener("load", async () => {
+    introVideo.volume = 1;
+    const p = introVideo.play();
+    if(p){
+      try{
+        await p;
+        introHint.style.opacity = "0";
+      }catch(e){
+        introHint.style.opacity = ".92";
+      }
+    }
+  }, { once:true });
+
+  introVideo.addEventListener("pointerup", () => {
+    if(introVideo.paused){
+      safePlay(introVideo).then(() => introHint.style.opacity = "0");
+    }
+  });
+
+  function startGame(){
+    ensureAudioContext();
+    playTone("start");
+    showScreen(gameScreen);
+    currentRound = 0;
+    renderRound(true);
+  }
+
+  startButton.addEventListener("click", startGame);
+  startButton.addEventListener("keydown", e => {
+    if(e.key === "Enter" || e.key === " "){
+      e.preventDefault();
+      startGame();
+    }
+  });
+
+  function setDropHome(drop, animated=true){
+    const verb = drop.dataset.verb;
+    const home = dropHomes[verb];
+    if(animated){
+      drop.style.transition = "left .32s ease, top .32s ease, transform .32s ease, opacity .32s ease";
+    }else{
+      drop.style.transition = "none";
+    }
+    drop.style.left = home.left;
+    drop.style.top = home.top;
+    drop.style.opacity = "1";
+    drop.classList.remove("dragging","disappear");
+    drop.style.pointerEvents = "";
+    setTimeout(() => { drop.style.transition = ""; }, animated ? 340 : 0);
+  }
+
+  function resetFlowers(){
+    flowers.forEach(img => {
+      img.src = ASSETS.wilted;
+      img.classList.remove("angry");
+    });
+  }
+
+  function renderRound(withInstruction=false){
+    solvedVerbs.clear();
+    busyWrong = false;
+    shield.style.display = "none";
+    nextOverlay.classList.remove("show");
+    clearTimeout(nextAdvanceTimer);
+
+    roundBadge.textContent = `${currentRound + 1} / ${ROUNDS.length}`;
+
+    resetFlowers();
+
+    drops.forEach(d => {
+      setDropHome(d, false);
+      d.classList.remove("spawn");
+      // force restart spawn animation
+      void d.offsetWidth;
+      d.classList.add("spawn");
+    });
+
+    const randomized = shuffle(ROUNDS[currentRound]);
+    currentSlotData = {};
+    slotNames.forEach((slot, i) => {
+      const item = randomized[i];
+      currentSlotData[slot] = item;
+      const box = document.querySelector(`.wordBox.${slot}`);
+      box.textContent = item.text;
+      box.classList.remove("correct");
+    });
+
+    if(withInstruction){
+      stopAndReset(instructionAudio);
+      setTimeout(() => safePlay(instructionAudio), 120);
+    }
+  }
+
+  function getPointerPercent(ev){
+    const r = stage.getBoundingClientRect();
+    return {
+      x: ((ev.clientX - r.left) / r.width) * 100,
+      y: ((ev.clientY - r.top) / r.height) * 100
+    };
+  }
+
+  function hitSlot(ev){
+    const pointX = ev.clientX;
+    const pointY = ev.clientY;
+    for(const box of wordBoxes){
+      const r = box.getBoundingClientRect();
+      // Slightly expand hit target for touch devices.
+      const padX = r.width * .12;
+      const padY = r.height * .35;
+      if(pointX >= r.left-padX && pointX <= r.right+padX &&
+         pointY >= r.top-padY && pointY <= r.bottom+padY){
+        return box.dataset.slot;
+      }
+    }
+    return null;
+  }
+
+  function attachDrag(drop){
+    let pointerId = null;
+    let dragging = false;
+
+    drop.addEventListener("pointerdown", ev => {
+      if(busyWrong || solvedVerbs.has(drop.dataset.verb)) return;
+      pointerId = ev.pointerId;
+      dragging = true;
+      drop.setPointerCapture?.(pointerId);
+      drop.classList.add("dragging");
+      drop.style.transition = "none";
+      const p = getPointerPercent(ev);
+      drop.style.left = p.x + "%";
+      drop.style.top = p.y + "%";
+      ev.preventDefault();
+    });
+
+    drop.addEventListener("pointermove", ev => {
+      if(!dragging || ev.pointerId !== pointerId) return;
+      const p = getPointerPercent(ev);
+      drop.style.left = Math.max(3,Math.min(97,p.x)) + "%";
+      drop.style.top = Math.max(5,Math.min(95,p.y)) + "%";
+      ev.preventDefault();
+    });
+
+    const finish = ev => {
+      if(!dragging || ev.pointerId !== pointerId) return;
+      dragging = false;
+      drop.releasePointerCapture?.(pointerId);
+      drop.classList.remove("dragging");
+      const slot = hitSlot(ev);
+      if(slot) evaluateDrop(drop, slot);
+      else setDropHome(drop, true);
+      pointerId = null;
+      ev.preventDefault();
+    };
+
+    drop.addEventListener("pointerup", finish);
+    drop.addEventListener("pointercancel", ev => {
+      if(dragging && ev.pointerId === pointerId){
+        dragging = false;
+        drop.classList.remove("dragging");
+        setDropHome(drop, true);
+        pointerId = null;
+      }
+    });
+  }
+
+  drops.forEach(attachDrag);
+
+  function flowerForSlot(slot){
+    return document.querySelector(`.flower[data-slot="${slot}"]`);
+  }
+
+  function boxForSlot(slot){
+    return document.querySelector(`.wordBox[data-slot="${slot}"]`);
+  }
+
+  function evaluateDrop(drop, slot){
+    const verb = drop.dataset.verb;
+    const target = currentSlotData[slot];
+    if(!target){
+      setDropHome(drop,true);
+      return;
+    }
+
+    if(target.verb === verb){
+      handleCorrect(drop, slot);
+    }else{
+      handleWrong(drop, slot);
+    }
+  }
+
+  function handleCorrect(drop, slot){
+    solvedVerbs.add(drop.dataset.verb);
+
+    const flower = flowerForSlot(slot);
+    const box = boxForSlot(slot);
+
+    // Pull the drop visually into the flower, then dissolve it.
+    const flowerRect = flower.getBoundingClientRect();
+    const stageRect = stage.getBoundingClientRect();
+    const x = ((flowerRect.left + flowerRect.width/2 - stageRect.left) / stageRect.width) * 100;
+    const y = ((flowerRect.top + flowerRect.height/2 - stageRect.top) / stageRect.height) * 100;
+
+    drop.style.transition = "left .28s ease, top .28s ease, transform .28s ease";
+    drop.style.left = x + "%";
+    drop.style.top = y + "%";
+
+    safePlay(correctAudio);
+    box.classList.add("correct");
+
+    setTimeout(() => {
+      drop.classList.add("disappear");
+      flower.src = ASSETS.flowersBySlot[slot];
+    }, 210);
+
+    if(solvedVerbs.size === 3){
+      setTimeout(finishRound, 850);
+    }
+  }
+
+  function handleWrong(drop, slot){
+    if(busyWrong) return;
+    busyWrong = true;
+    shield.style.display = "block";
+
+    const flower = flowerForSlot(slot);
+    flower.src = ASSETS.angry;
+    flower.classList.add("angry");
+
+    safePlay(wrongAudio);
+    setDropHome(drop, true);
+
+    setTimeout(() => {
+      flower.src = ASSETS.wilted;
+      flower.classList.remove("angry");
+      busyWrong = false;
+      shield.style.display = "none";
+    }, 2000);
+  }
+
+  function finishRound(){
+    shield.style.display = "block";
+    playTone("ding");
+    nextOverlay.classList.add("show");
+
+    if(currentRound === ROUNDS.length - 1){
+      nextOverlay.querySelector(".continueHint").textContent = "Tap to finish";
+    }else{
+      nextOverlay.querySelector(".continueHint").textContent = "Tap to continue";
+    }
+
+    // Also advance automatically after a short moment, while still allowing a tap.
+    nextAdvanceTimer = setTimeout(advanceFromNext, 2200);
+  }
+
+  function advanceFromNext(){
+    clearTimeout(nextAdvanceTimer);
+    if(!nextOverlay.classList.contains("show")) return;
+    nextOverlay.classList.remove("show");
+
+    if(currentRound < ROUNDS.length - 1){
+      currentRound++;
+      renderRound(false);
+    }else{
+      showFinal();
+    }
+  }
+
+  nextOverlay.addEventListener("pointerup", ev => {
+    ev.preventDefault();
+    advanceFromNext();
+  });
+
+  function showFinal(){
+    stopAndReset(instructionAudio);
+    stopAndReset(correctAudio);
+    stopAndReset(wrongAudio);
+    showScreen(finalScreen);
+    finalVideo.currentTime = 0;
+    safePlay(finalVideo);
+  }
+
+  finalVideo.addEventListener("ended", () => {
+    document.getElementById("endLabel").classList.add("show");
+  });
+
+  // Prevent accidental scrolling/context menu during the quest.
+  document.addEventListener("contextmenu", e => e.preventDefault());
+
+  // Helpful console diagnostics for missing same-folder files.
+  ["Start pic.png","Start_button.png","background.png","Make_drop.png","Go_drop.png","Do_drop.png",
+   "wilted.png","blue.png","pink.png","purple.png","angry.png","next.png"].forEach(name => {
+    const img = new Image();
+    img.onerror = () => console.warn("Missing image:", name);
+    img.src = name;
+  });
+})();
+</script>
+</body>
+</html>
